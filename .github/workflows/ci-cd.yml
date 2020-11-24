@@ -1,0 +1,49 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+env:
+  NODE_VERSION: 12.18.3
+  PORT: 10443
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    startegy:
+      matrix:
+        node: [10]
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Define NPM_TAG
+        id: NPM_TAG
+        run: |
+          NPM_TAG=(latest next)
+          echo ::set-output name=NPM_TAG::$(NPM_TAG)
+      - name: Define IMAGE_NAME
+        id: IMAGE_NAME
+        run: |
+          IMAGE_NAME=(theia-full theia theia-go theia-python theia-swift theia-cpp theia-rust theia-dart theia-https theia-php)
+          echo ::set-output name=IMAGE_NAME::$(IMAGE_NAME)
+      - name: Before install
+        run: npm install -g yarn eclint && (eclint check "**/*" || echo "Warning! Formatting errors encountered..."
+      - name: Check changed images
+        run: |
+          ./check_changed.sh ${{IMAGE_NAME}} ;
+          RETURN_CODE=$? ;
+          if [ $RETURN_CODE -eq 137 ];
+           then exit 0;
+          elif [ $RETURN_CODE -ne 0 ];
+           then exit $RETURN_CODE;
+          fi
+        env:
+          IMAGE_NAME: ${{ steps.id.IMAGE_NAME.IMAGE_NAME }}
+      - name: Install
+        run: ./build_container.sh $NPM_TAG $IMAGE_NAME $NODE_VERSION
