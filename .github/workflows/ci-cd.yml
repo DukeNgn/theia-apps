@@ -1,0 +1,95 @@
+name: ci-cd
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+  schedule:
+    - cron: "0 7 * * *" # runs every day at 7 a.m
+
+jobs:
+  build:
+    name: ${{ matrix.IMAGE_NAME }}@${{ matrix.NPM_TAG }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node_test: [10] # used for the test suite
+        node: [12.18.3]
+        NPM_TAG: ["latest", "next"]
+        IMAGE_NAME:
+          [
+            "theia-full",
+            "theia",
+            "theia-go",
+            "theia-python",
+            "theia-cpp",
+            "theia-rust",
+            "theia-https",
+            "theia-php",
+          ]
+        include:
+          - IMAGE_NAME: "theia-https"
+            ENV_VARS: "-e token="
+            PORT: 10443
+          # Swift and Dart images use a different node version than the rest
+          - IMAGE_NAME: "theia-swift"
+            NPM_TAG: "next"
+            node_test: 10
+            node: 12
+          - IMAGE_NAME: "theia-swift"
+            NPM_TAG: "latest"
+            node_test: 10
+            node: 12
+          - IMAGE_NAME: "theia-dart"
+            NPM_TAG: "next"
+            node_test: 10
+            node: 12
+          - IMAGE_NAME: "theia-dart"
+            NPM_TAG: "latest"
+            node_test: 10
+            node: 12
+
+    runs-on: ubuntu-latest
+    steps:
+      
+      - name: Checkout
+        uses: actions/checkout@v2
+        
+      - name: Use Node.js ${{ matrix.node_test }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node_test }}
+
+      - name: Run linting
+        shell: bash
+        run: |
+          npm -v
+          npm install eclint
+          eclint check "**/*" || echo "Warning! Formatting errors encountered..."
+
+      - name: Check changed
+        id: check_changed
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          git fetch origin master:master
+          RETURN_CODE=$(./check_changed.sh ${{ matrix.IMAGE_NAME }});
+          if [ $RETURN_CODE -eq 137 ]; then
+             echo "No changes in ${{ matrix.IMAGE_NAME }}, terminating."
+             echo ::set-output name=status::'terminate'
+          elif [ $RETURN_CODE -ne 0]; then
+            echo "Error happened in check_changed"
+            exit $RETURN_CODE; 
+          else
+             echo ::set-output name=status::'continue'
+          fi
+
+      - name: Build
+        if: github.event_name != 'pull_request' || steps.check_changed.outputs.status == 'continue'
+        shell: bash
+        run: ./build_container.sh ${{ matrix.NPM_TAG }} ${{ matrix.IMAGE_NAME }} ${{ matrix.node }} ${{matrix.PORT}} ${{matrix.ENV_VARS}}

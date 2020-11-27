@@ -31,3 +31,5 @@ docker push theiaide/theia-python:${VERSION}
 ```
 docker pull theiaide/theia-python:${VERSION}
 ```
+
+Test line for image changed (Remove when upstream)
