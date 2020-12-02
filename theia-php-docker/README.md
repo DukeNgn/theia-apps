@@ -24,3 +24,4 @@ docker run -it --init -p 3000:3000 -v "$(pwd):/home/project" theiaide/theia-php:
 docker run -it --init -e "PHPLS_ALLOW_XDEBUG=2.6.1" -p 3000:3000 -v "$(pwd):/home/project" theiaide/theia-php:latest
 ```
 
+test line
